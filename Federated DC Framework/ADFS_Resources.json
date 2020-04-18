@@ -1,0 +1,81 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "buName": {
+            "type": "string"
+        },
+        "locationName": {
+            "type": "string"
+        },
+        "routeTableID": {
+            "type": "String"
+        },
+        "adfswebSubnetRange": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "virtualNetworks_ADFS_vNet_name": "[concat(toUpper(parameters('buName')), '_ADFS_', toUpper(parameters('locationName')), '_vNet')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "apiVersion": "2019-11-01",
+            "name": "[variables('virtualNetworks_ADFS_vNet_name')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('adfswebSubnetRange')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "ADFS_Web",
+                        "properties": {
+                            "addressPrefix": "[parameters('adfswebSubnetRange')]",
+                            "routeTable": {
+                                "id": "[parameters('routeTableID')]"
+                            },
+                            "serviceEndpoints": [],
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Enabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        }
+                    }
+                ],
+                "enableDdosProtection": false,
+                "enableVmProtection": false
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('virtualNetworks_ADFS_vNet_name'), '/ADFS_Web')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworks_ADFS_vNet_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "[parameters('adfswebSubnetRange')]",
+                "routeTable": {
+                    "id": "[parameters('routeTableID')]"
+                },
+                "serviceEndpoints": [],
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Enabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        }
+    ],
+    "outputs": {
+        "adfsServersvNetID": {
+            "type": "string",
+            "value": "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworks_ADFS_vNet_name'))]"
+        },
+        "adfsServersvNetName": {
+            "type": "string",
+            "value": "[variables('virtualNetworks_ADFS_vNet_name')]"
+        }
+    }
+}

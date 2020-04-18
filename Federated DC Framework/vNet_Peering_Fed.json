@@ -1,0 +1,252 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "netHubRG": {
+            "type": "string"
+        },
+        "netHubvNetID": {
+            "type": "string"
+        },
+        "netHubvNetName": {
+            "type": "string"
+        },
+        "prodServersRG": {
+            "type": "string"
+        },
+        "prodServersvNetID": {
+            "type": "string"
+        },
+        "prodServersvNetName": {
+            "type": "string"
+        },
+        "adfsRG": {
+            "type": "String"
+        },
+        "adfsServersvNetID": {
+            "type": "string"
+        },
+        "adfsServersvNetName": {
+            "type": "string"
+        },
+        "lciADConnectRG": {
+            "type": "string"
+        },
+        "lciADConnectvNetID": {
+            "type": "string"
+        },
+        "lciADFSEastRG": {
+            "type": "string"
+        },
+        "lciADFSEastvNetID": {
+            "type": "string"
+        },
+        "lciADFSNorthCentralRG": {
+            "type": "string"
+        },
+        "lciADFSNorthCentralvNetID": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "peeringName_NetHub_To_ProdServers": "[concat(parameters('netHubvNetName'), '/', parameters('netHubRG'), '_To_', parameters('prodServersRG'))]",
+        "peeringName_NetHub_To_ADFS": "[concat(parameters('netHubvNetName'), '/', parameters('netHubRG'), '_To_', parameters('adfsRG'))]",
+        "peeringName_ProdServers_To_NetHub": "[concat(parameters('prodServersvNetName'), '/', parameters('prodServersRG'), '_To_', parameters('netHubRG'))]",
+        "peeringName_ProdServers_To_ADFS": "[concat(parameters('prodServersvNetName'), '/', parameters('prodServersRG'), '_To_', parameters('adfsRG'))]",
+        "peeringName_ProdServers_To_ADConnect": "[concat(parameters('prodServersvNetName'), '/', parameters('prodServersRG'), '_To_', parameters('lciADConnectRG'))]",
+        "peeringName_ADFS_To_NetHub": "[concat(parameters('adfsServersvNetName'), '/', parameters('adfsRG'), '_To_', parameters('netHubRG'))]",
+        "peeringName_ADFS_To_ProdServers": "[concat(parameters('adfsServersvNetName'), '/', parameters('adfsRG'), '_To_', parameters('prodServersRG'))]",
+        "peeringName_ADFS_To_ADConnect": "[concat(parameters('adfsServersvNetName'), '/', parameters('adfsRG'), '_To_', parameters('lciADConnectRG'))]",
+        "peeringName_ADFS_To_LCIADFSEast": "[concat(parameters('adfsServersvNetName'), '/', parameters('adfsRG'), '_To_', parameters('lciADFSEastRG'))]",
+        "peeringName_ADFS_To_LCIADFSNorthCentral": "[concat(parameters('adfsServersvNetName'), '/', parameters('adfsRG'), '_To_', parameters('lciADFSNorthCentralRG'))]"
+    },
+    "resources": [
+        {
+            "apiVersion": "2017-06-01",
+            "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+            "name": "[variables('peeringName_NetHub_To_ProdServers')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "allowVirtualNetworkAccess": true,
+                "allowForwardedTraffic": false,
+                "allowGatewayTransit": false,
+                "useRemoteGateways": false,
+                "remoteVirtualNetwork": {
+                    "id": "[parameters('prodServersvNetID')]"
+                }
+            }
+        },
+        {
+            "apiVersion": "2017-06-01",
+            "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+            "name": "[variables('peeringName_NetHub_To_ADFS')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "allowVirtualNetworkAccess": true,
+                "allowForwardedTraffic": false,
+                "allowGatewayTransit": false,
+                "useRemoteGateways": false,
+                "remoteVirtualNetwork": {
+                    "id": "[parameters('adfsServersvNetID')]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2017-05-10",
+            "name": "nestedTemplate",
+            "resourceGroup": "[parameters('prodServersRG')]",
+            "properties": {
+                "mode": "Incremental",
+                "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {},
+                    "variables": {},
+                    "resources": [
+                        {
+                            "apiVersion": "2017-06-01",
+                            "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+                            "name": "[variables('peeringName_ProdServers_To_NetHub')]",
+                            "location": "[resourceGroup().location]",
+                            "properties": {
+                                "allowVirtualNetworkAccess": true,
+                                "allowForwardedTraffic": true,
+                                "allowGatewayTransit": false,
+                                "useRemoteGateways": false,
+                                "remoteVirtualNetwork": {
+                                    "id": "[parameters('netHubvNetID')]"
+                                }
+                            }
+                        },
+                        {
+                            "apiVersion": "2017-06-01",
+                            "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+                            "name": "[variables('peeringName_ProdServers_To_ADFS')]",
+                            "location": "[resourceGroup().location]",
+                            "properties": {
+                                "allowVirtualNetworkAccess": true,
+                                "allowForwardedTraffic": true,
+                                "allowGatewayTransit": false,
+                                "useRemoteGateways": false,
+                                "remoteVirtualNetwork": {
+                                    "id": "[parameters('adfsServersvNetID')]"
+                                }
+                            }
+                        },
+                        {
+                            "apiVersion": "2017-06-01",
+                            "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+                            "name": "[variables('peeringName_ProdServers_To_ADConnect')]",
+                            "location": "[resourceGroup().location]",
+                            "properties": {
+                                "allowVirtualNetworkAccess": true,
+                                "allowForwardedTraffic": true,
+                                "allowGatewayTransit": false,
+                                "useRemoteGateways": false,
+                                "remoteVirtualNetwork": {
+                                    "id": "[parameters('lciADConnectvNetID')]"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "parameters": {}
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2017-05-10",
+            "name": "nestedTemplate",
+            "resourceGroup": "[parameters('adfsRG')]",
+            "properties": {
+                "mode": "Incremental",
+                "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {},
+                    "variables": {},
+                    "resources": [
+                        {
+                            "apiVersion": "2017-06-01",
+                            "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+                            "name": "[variables('peeringName_ADFS_To_NetHub')]",
+                            "location": "[resourceGroup().location]",
+                            "properties": {
+                                "allowVirtualNetworkAccess": true,
+                                "allowForwardedTraffic": true,
+                                "allowGatewayTransit": false,
+                                "useRemoteGateways": false,
+                                "remoteVirtualNetwork": {
+                                    "id": "[parameters('netHubvNetID')]"
+                                }
+                            }
+                        },
+                        {
+                            "apiVersion": "2017-06-01",
+                            "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+                            "name": "[variables('peeringName_ADFS_To_ProdServers')]",
+                            "location": "[resourceGroup().location]",
+                            "properties": {
+                                "allowVirtualNetworkAccess": true,
+                                "allowForwardedTraffic": true,
+                                "allowGatewayTransit": false,
+                                "useRemoteGateways": false,
+                                "remoteVirtualNetwork": {
+                                    "id": "[parameters('prodServersvNetID')]"
+                                }
+                            }
+                        },
+                        {
+                            "apiVersion": "2017-06-01",
+                            "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+                            "name": "[variables('peeringName_ADFS_To_ADConnect')]",
+                            "location": "[resourceGroup().location]",
+                            "properties": {
+                                "allowVirtualNetworkAccess": true,
+                                "allowForwardedTraffic": true,
+                                "allowGatewayTransit": false,
+                                "useRemoteGateways": false,
+                                "remoteVirtualNetwork": {
+                                    "id": "[parameters('lciADConnectvNetID')]"
+                                }
+                            }
+                        },
+                        {
+                            "apiVersion": "2017-06-01",
+                            "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+                            "name": "[variables('peeringName_ADFS_To_LCIADFSEast')]",
+                            "location": "[resourceGroup().location]",
+                            "properties": {
+                                "allowVirtualNetworkAccess": true,
+                                "allowForwardedTraffic": true,
+                                "allowGatewayTransit": false,
+                                "useRemoteGateways": false,
+                                "remoteVirtualNetwork": {
+                                    "id": "[parameters('lciADFSEastvNetID')]"
+                                }
+                            }
+                        },
+                        {
+                            "apiVersion": "2017-06-01",
+                            "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+                            "name": "[variables('peeringName_ADFS_To_LCIADFSNorthCentral')]",
+                            "location": "[resourceGroup().location]",
+                            "properties": {
+                                "allowVirtualNetworkAccess": true,
+                                "allowForwardedTraffic": true,
+                                "allowGatewayTransit": false,
+                                "useRemoteGateways": false,
+                                "remoteVirtualNetwork": {
+                                    "id": "[parameters('lciADFSNorthCentralvNetID')]"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "parameters": {}
+            }
+        }
+    ],
+    "outputs": {}
+}

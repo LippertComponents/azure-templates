@@ -1,0 +1,57 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "buName": {
+            "type": "string"
+        },
+        "locationName": {
+            "type": "string"
+        },
+        "azureRegion": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "netHubRGName": "[concat(toUpper(parameters('buName')), '_PROD_', toUpper(parameters('locationName')), '-Net-Hub')]",
+        "prodServersRGName": "[concat(toUpper(parameters('buName')), '_PROD_', toUpper(parameters('locationName')))]",
+        "adfsRGName": "[concat(toUpper(parameters('buName')), '_ADFS_', toUpper(parameters('locationName')))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Resources/resourceGroups",
+            "apiVersion": "2018-05-01",
+            "name": "[variables('netHubRGName')]",
+            "location": "[parameters('azureRegion')]",
+            "properties": {}
+        },
+        {
+            "type": "Microsoft.Resources/resourceGroups",
+            "apiVersion": "2018-05-01",
+            "name": "[variables('prodServersRGName')]",
+            "location": "[parameters('azureRegion')]",
+            "properties": {}
+        },
+        {
+            "type": "Microsoft.Resources/resourceGroups",
+            "apiVersion": "2018-05-01",
+            "name": "[variables('adfsRGName')]",
+            "location": "[parameters('azureRegion')]",
+            "properties": {}
+        }
+    ],
+    "outputs": {
+        "netHubRGID": {
+            "type": "string",
+            "value": "[variables('netHubRGName')]"
+        },
+        "prodServersRGID": {
+            "type": "string",
+            "value": "[variables('prodServersRGName')]"
+        },
+        "adfsRGID": {
+            "type": "string",
+            "value": "[variables('adfsRGName')]"
+        }
+    }
+}

@@ -1,0 +1,186 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "buName": {
+            "type": "string"
+        },
+        "locationName": {
+            "type": "string"
+        },
+        "routeTableID": {
+            "type": "String"
+        },
+        "unclassifiedSubnetRange": {
+            "type": "string"
+        },
+        "restrictedSubnetRange": {
+            "type": "string"
+        },
+        "confidentialSubnetRange": {
+            "type": "string"
+        },
+        "topsecretSubnetRange": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "virtualNetworks_Prod-Servers_vNet_name": "[concat(toUpper(parameters('buName')), '_PROD_', toUpper(parameters('locationName')), '_vNet')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "apiVersion": "2019-11-01",
+            "name": "[variables('virtualNetworks_Prod-Servers_vNet_name')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('unclassifiedSubnetRange')]",
+                        "[parameters('restrictedSubnetRange')]",
+                        "[parameters('confidentialSubnetRange')]",
+                        "[parameters('topsecretSubnetRange')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "Confidential-Servers",
+                        "properties": {
+                            "addressPrefix": "[parameters('confidentialSubnetRange')]",
+                            "routeTable": {
+                                "id": "[parameters('routeTableID')]"
+                            },
+                            "serviceEndpoints": [],
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Enabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        }
+                    },
+                    {
+                        "name": "Restricted-Servers",
+                        "properties": {
+                            "addressPrefix": "[parameters('restrictedSubnetRange')]",
+                            "routeTable": {
+                                "id": "[parameters('routeTableID')]"
+                            },
+                            "serviceEndpoints": [],
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Enabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        }
+                    },
+                    {
+                        "name": "Top_Secret-Servers",
+                        "properties": {
+                            "addressPrefix": "[parameters('topsecretSubnetRange')]",
+                            "routeTable": {
+                                "id": "[parameters('routeTableID')]"
+                            },
+                            "serviceEndpoints": [],
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Enabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        }
+                    },
+                    {
+                        "name": "Unclassified-Servers",
+                        "properties": {
+                            "addressPrefix": "[parameters('unclassifiedSubnetRange')]",
+                            "routeTable": {
+                                "id": "[parameters('routeTableID')]"
+                            },
+                            "serviceEndpoints": [],
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Enabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        }
+                    }
+                ],
+                "enableDdosProtection": false,
+                "enableVmProtection": false
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('virtualNetworks_Prod-Servers_vNet_name'), '/Confidential-Servers')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworks_Prod-Servers_vNet_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "[parameters('confidentialSubnetRange')]",
+                "routeTable": {
+                    "id": "[parameters('routeTableID')]"
+                },
+                "serviceEndpoints": [],
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Enabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('virtualNetworks_Prod-Servers_vNet_name'), '/Restricted-Servers')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworks_Prod-Servers_vNet_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "[parameters('restrictedSubnetRange')]",
+                "routeTable": {
+                    "id": "[parameters('routeTableID')]"
+                },
+                "serviceEndpoints": [],
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Enabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('virtualNetworks_Prod-Servers_vNet_name'), '/Top_Secret-Servers')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworks_Prod-Servers_vNet_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "[parameters('topsecretSubnetRange')]",
+                "routeTable": {
+                    "id": "[parameters('routeTableID')]"
+                },
+                "serviceEndpoints": [],
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Enabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('virtualNetworks_Prod-Servers_vNet_name'), '/Unclassified-Servers')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworks_Prod-Servers_vNet_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "[parameters('unclassifiedSubnetRange')]",
+                "routeTable": {
+                    "id": "[parameters('routeTableID')]"
+                },
+                "serviceEndpoints": [],
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Enabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        }
+    ],
+    "outputs": {
+        "prodServersvNetID": {
+            "type": "string",
+            "value": "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworks_Prod-Servers_vNet_name'))]"
+        },
+        "prodServersvNetName": {
+            "type": "string",
+            "value": "[variables('virtualNetworks_Prod-Servers_vNet_name')]"
+        }
+    }
+}

@@ -1,0 +1,1062 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "siteID": {
+            "type": "string"
+        },
+        "buName": {
+            "type": "string"
+        },
+        "locationName": {
+            "type": "string"
+        },
+        "vipwanAdminPassword": {
+            "type": "securestring"
+        },
+        "frontDMZSubnetRange": {
+            "type": "string"
+        },
+        "wafDMZSubnetRange": {
+            "type": "string"
+        },
+        "viptelaP2PSubnetRange": {
+            "type": "string"
+        },
+        "l3NetMgmtSubnetRange": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "virtualMachines_vipwan01_name": "[concat(toLower(parameters('siteID')), '-vipwan01')]",
+        "loadBalancers_vipwan_ilb_name": "[concat(toLower(parameters('siteID')), '-vipwan-ilb')]",
+        "availabilitySets_vipwan_as_name": "[concat(toLower(parameters('siteID')), '-vipwan-as')]",
+        "publicIPAddresses_vipwan01_ip_name": "[concat(toLower(parameters('siteID')), '-vipwan-ip')]",
+        "routeTables_vipwan_routetable_name": "[concat(toLower(parameters('siteID')), '-vipwan-routetable')]",
+        "storageAccounts_diag_name": "[concat(toLower(parameters('buName')), 'prod', toLower(parameters('locationName')), 'nethubdiag')]",
+        "networkInterfaces_vipwan01_lan_nic_name": "[concat(toLower(parameters('siteID')), '-vipwan01-lan-nic')]",
+        "networkSecurityGroups_vipwan01_nsg_name": "[concat(toLower(parameters('siteID')), '-vipwan01-nsg')]",
+        "networkInterfaces_vipwan01_mgmt_nic_name": "[concat(toLower(parameters('siteID')), '-vipwan01-mgmt-nic')]",
+        "virtualNetworks_Net_Hub_vNet_name": "[concat(toUpper(parameters('buName')), '_PROD_', toUpper(parameters('locationName')), '-Net-Hub_vNet')]",
+        "networkInterfaces_vipwan01_transport_nic_name": "[concat(toLower(parameters('siteID')), '-vipwan01-transport-nic')]",
+        "networkSecurityGroups_Net_Hub_WAF_DMZ_NSG_name": "[concat(toUpper(parameters('buName')), '_PROD_', toUpper(parameters('locationName')), '-Net-Hub_WAF-DMZ_NSG')]",
+        "networkSecurityGroups_Net_Hub_Front_DMZ_NSG_name": "[concat(toUpper(parameters('buName')), '_PROD_', toUpper(parameters('locationName')), '-Net-Hub_Front-DMZ_NSG')]",
+        "vipwan-ilb-vip": "[concat(substring(parameters('viptelaP2PSubnetRange'),0,sub(length(parameters('viptelaP2PSubnetRange')), 4)), '200')]",
+        "vipwan01-lan-ip": "[concat(substring(parameters('viptelaP2PSubnetRange'),0,sub(length(parameters('viptelaP2PSubnetRange')), 4)), '201')]",
+        "vipwan01-transport-ip": "[concat(substring(parameters('frontDMZSubnetRange'),0,sub(length(parameters('frontDMZSubnetRange')), 4)), '201')]",
+        "vipwan01-mgmt-ip": "[concat(substring(parameters('l3NetMgmtSubnetRange'),0,sub(length(parameters('l3NetMgmtSubnetRange')), 4)), '201')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2019-11-01",
+            "name": "[variables('networkSecurityGroups_vipwan01_nsg_name')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "default-allow-ssh",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "74.119.196.0/22",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 500,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2019-11-01",
+            "name": "[variables('networkSecurityGroups_Net_Hub_Front_DMZ_NSG_name')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "Deny_RFC1918",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "*",
+                            "access": "Deny",
+                            "priority": 4000,
+                            "direction": "Outbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": [
+                                "10.0.0.0/8",
+                                "172.16.0.0/12",
+                                "192.168.0.0/16"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "Allow_RDP_Out",
+                        "properties": {
+                            "description": " ",
+                            "protocol": "*",
+                            "sourcePortRange": "3389",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "VirtualNetwork",
+                            "access": "Allow",
+                            "priority": 499,
+                            "direction": "Outbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": [
+                                "74.119.196.0/23",
+                                "10.0.0.0/8",
+                                "172.16.0.0/12",
+                                "192.168.0.0/16"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "Allow_RDP_In",
+                        "properties": {
+                            "description": " ",
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "3389",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 500,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [
+                                "74.119.196.0/23",
+                                "10.0.0.0/8",
+                                "172.16.0.0/12",
+                                "192.168.0.0/16"
+                            ],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "AzureBackupServices",
+                        "properties": {
+                            "description": " ",
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "sourceAddressPrefix": "VirtualNetwork",
+                            "destinationAddressPrefix": "[concat('storage.', resourceGroup().location)]",
+                            "access": "Allow",
+                            "priority": 494,
+                            "direction": "Outbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [
+                                "80",
+                                "443",
+                                "8443"
+                            ],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2019-11-01",
+            "name": "[variables('networkSecurityGroups_Net_Hub_WAF_DMZ_NSG_name')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "Deny_RFC1918",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "*",
+                            "access": "Deny",
+                            "priority": 4000,
+                            "direction": "Outbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": [
+                                "10.0.0.0/8",
+                                "172.16.0.0/12",
+                                "192.168.0.0/16"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "Allow_WAF_HealthProbe",
+                        "properties": {
+                            "description": " ",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "65503-65534",
+                            "sourceAddressPrefix": "Internet",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 410,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/publicIPAddresses",
+            "apiVersion": "2019-11-01",
+            "name": "[variables('publicIPAddresses_vipwan01_ip_name')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Standard"
+            },
+            "properties": {
+                "ipAddress": "52.151.247.251",
+                "publicIPAddressVersion": "IPv4",
+                "publicIPAllocationMethod": "Static",
+                "idleTimeoutInMinutes": 4,
+                "ipTags": []
+            }
+        },
+        {
+            "type": "Microsoft.Network/routeTables",
+            "apiVersion": "2019-11-01",
+            "name": "[variables('routeTables_vipwan_routetable_name')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "disableBgpRoutePropagation": false,
+                "routes": [
+                    {
+                        "name": "RFC1918_10",
+                        "properties": {
+                            "addressPrefix": "10.0.0.0/8",
+                            "nextHopType": "VirtualAppliance",
+                            "nextHopIpAddress": "[variables('vipwan-ilb-vip')]"
+                        }
+                    },
+                    {
+                        "name": "RFC1918_172",
+                        "properties": {
+                            "addressPrefix": "172.16.0.0/12",
+                            "nextHopType": "VirtualAppliance",
+                            "nextHopIpAddress": "[variables('vipwan-ilb-vip')]"
+                        }
+                    },
+                    {
+                        "name": "RFC1918_192",
+                        "properties": {
+                            "addressPrefix": "192.168.0.0/16",
+                            "nextHopType": "VirtualAppliance",
+                            "nextHopIpAddress": "[variables('vipwan-ilb-vip')]"
+                        }
+                    },
+                    {
+                        "name": "AD-Connect",
+                        "properties": {
+                            "addressPrefix": "10.200.0.0/24",
+                            "nextHopType": "VnetLocal"
+                        }
+                    },
+                    {
+                        "name": "default",
+                        "properties": {
+                            "addressPrefix": "0.0.0.0/0",
+                            "nextHopType": "Internet"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2019-06-01",
+            "name": "[variables('storageAccounts_diag_name')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Standard_LRS",
+                "tier": "Standard"
+            },
+            "kind": "Storage",
+            "properties": {
+                "networkAcls": {
+                    "bypass": "AzureServices",
+                    "virtualNetworkRules": [],
+                    "ipRules": [],
+                    "defaultAction": "Allow"
+                },
+                "supportsHttpsTrafficOnly": true,
+                "encryption": {
+                    "services": {
+                        "file": {
+                            "keyType": "Account",
+                            "enabled": true
+                        },
+                        "blob": {
+                            "keyType": "Account",
+                            "enabled": true
+                        }
+                    },
+                    "keySource": "Microsoft.Storage"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/availabilitySets",
+            "apiVersion": "2019-07-01",
+            "name": "[variables('availabilitySets_vipwan_as_name')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [],
+            "sku": {
+                "name": "Aligned"
+            },
+            "properties": {
+                "platformUpdateDomainCount": 2,
+                "platformFaultDomainCount": 2,
+                "virtualMachines": [
+                    {}
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2019-11-01",
+            "name": "[variables('networkInterfaces_vipwan01_mgmt_nic_name')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworks_Net_Hub_vNet_name'), 'L3_Net_Mgmt')]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAddress": "[variables('vipwan01-mgmt-ip')]",
+                            "privateIPAllocationMethod": "Static",
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworks_Net_Hub_vNet_name'), 'L3_Net_Mgmt')]"
+                            },
+                            "primary": true,
+                            "privateIPAddressVersion": "IPv4"
+                        }
+                    }
+                ],
+                "dnsSettings": {
+                    "dnsServers": []
+                },
+                "enableAcceleratedNetworking": false,
+                "enableIPForwarding": false
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('networkSecurityGroups_Net_Hub_Front_DMZ_NSG_name'), '/Allow_RDP_In')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroups_Net_Hub_Front_DMZ_NSG_name'))]"
+            ],
+            "properties": {
+                "description": " ",
+                "protocol": "*",
+                "sourcePortRange": "*",
+                "destinationPortRange": "3389",
+                "destinationAddressPrefix": "*",
+                "access": "Allow",
+                "priority": 500,
+                "direction": "Inbound",
+                "sourcePortRanges": [],
+                "destinationPortRanges": [],
+                "sourceAddressPrefixes": [
+                    "74.119.196.0/23",
+                    "10.0.0.0/8",
+                    "172.16.0.0/12",
+                    "192.168.0.0/16"
+                ],
+                "destinationAddressPrefixes": []
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('networkSecurityGroups_Net_Hub_Front_DMZ_NSG_name'), '/Allow_RDP_Out')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroups_Net_Hub_Front_DMZ_NSG_name'))]"
+            ],
+            "properties": {
+                "description": " ",
+                "protocol": "*",
+                "sourcePortRange": "3389",
+                "destinationPortRange": "*",
+                "sourceAddressPrefix": "VirtualNetwork",
+                "access": "Allow",
+                "priority": 499,
+                "direction": "Outbound",
+                "sourcePortRanges": [],
+                "destinationPortRanges": [],
+                "sourceAddressPrefixes": [],
+                "destinationAddressPrefixes": [
+                    "74.119.196.0/23",
+                    "10.0.0.0/8",
+                    "172.16.0.0/12",
+                    "192.168.0.0/16"
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('networkSecurityGroups_Net_Hub_WAF_DMZ_NSG_name'), '/Allow_WAF_HealthProbe')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroups_Net_Hub_WAF_DMZ_NSG_name'))]"
+            ],
+            "properties": {
+                "description": " ",
+                "protocol": "Tcp",
+                "sourcePortRange": "*",
+                "destinationPortRange": "65503-65534",
+                "sourceAddressPrefix": "Internet",
+                "destinationAddressPrefix": "*",
+                "access": "Allow",
+                "priority": 410,
+                "direction": "Inbound",
+                "sourcePortRanges": [],
+                "destinationPortRanges": [],
+                "sourceAddressPrefixes": [],
+                "destinationAddressPrefixes": []
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('networkSecurityGroups_Net_Hub_Front_DMZ_NSG_name'), '/AzureBackupServices')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroups_Net_Hub_Front_DMZ_NSG_name'))]"
+            ],
+            "properties": {
+                "description": " ",
+                "protocol": "*",
+                "sourcePortRange": "*",
+                "sourceAddressPrefix": "VirtualNetwork",
+                "destinationAddressPrefix": "[concat('Storage.', resourceGroup().location)]",
+                "access": "Allow",
+                "priority": 494,
+                "direction": "Outbound",
+                "sourcePortRanges": [],
+                "destinationPortRanges": [
+                    "80",
+                    "443",
+                    "8443"
+                ],
+                "sourceAddressPrefixes": [],
+                "destinationAddressPrefixes": []
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('networkSecurityGroups_vipwan01_nsg_name'), '/default-allow-ssh')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroups_vipwan01_nsg_name'))]"
+            ],
+            "properties": {
+                "protocol": "Tcp",
+                "sourcePortRange": "*",
+                "destinationPortRange": "22",
+                "sourceAddressPrefix": "74.119.196.0/22",
+                "destinationAddressPrefix": "*",
+                "access": "Allow",
+                "priority": 500,
+                "direction": "Inbound",
+                "sourcePortRanges": [],
+                "destinationPortRanges": [],
+                "sourceAddressPrefixes": [],
+                "destinationAddressPrefixes": []
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('networkSecurityGroups_Net_Hub_Front_DMZ_NSG_name'), '/Deny_RFC1918')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroups_Net_Hub_Front_DMZ_NSG_name'))]"
+            ],
+            "properties": {
+                "protocol": "*",
+                "sourcePortRange": "*",
+                "destinationPortRange": "*",
+                "sourceAddressPrefix": "*",
+                "access": "Deny",
+                "priority": 4000,
+                "direction": "Outbound",
+                "sourcePortRanges": [],
+                "destinationPortRanges": [],
+                "sourceAddressPrefixes": [],
+                "destinationAddressPrefixes": [
+                    "10.0.0.0/8",
+                    "172.16.0.0/12",
+                    "192.168.0.0/16"
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('networkSecurityGroups_Net_Hub_WAF_DMZ_NSG_name'), '/Deny_RFC1918')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroups_Net_Hub_WAF_DMZ_NSG_name'))]"
+            ],
+            "properties": {
+                "protocol": "*",
+                "sourcePortRange": "*",
+                "destinationPortRange": "*",
+                "sourceAddressPrefix": "*",
+                "access": "Deny",
+                "priority": 4000,
+                "direction": "Outbound",
+                "sourcePortRanges": [],
+                "destinationPortRanges": [],
+                "sourceAddressPrefixes": [],
+                "destinationAddressPrefixes": [
+                    "10.0.0.0/8",
+                    "172.16.0.0/12",
+                    "192.168.0.0/16"
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/routeTables/routes",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('routeTables_vipwan_routetable_name'), '/AD-Connect')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/routeTables', variables('routeTables_vipwan_routetable_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "10.200.0.0/24",
+                "nextHopType": "VnetLocal"
+            }
+        },
+        {
+            "type": "Microsoft.Network/routeTables/routes",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('routeTables_vipwan_routetable_name'), '/default')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/routeTables', variables('routeTables_vipwan_routetable_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "0.0.0.0/0",
+                "nextHopType": "Internet"
+            }
+        },
+        {
+            "type": "Microsoft.Network/routeTables/routes",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('routeTables_vipwan_routetable_name'), '/RFC1918_10')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/routeTables', variables('routeTables_vipwan_routetable_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "10.0.0.0/8",
+                "nextHopType": "VirtualAppliance",
+                "nextHopIpAddress": "[variables('vipwan-ilb-vip')]"
+            }
+        },
+        {
+            "type": "Microsoft.Network/routeTables/routes",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('routeTables_vipwan_routetable_name'), '/RFC1918_172')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/routeTables', variables('routeTables_vipwan_routetable_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "172.16.0.0/12",
+                "nextHopType": "VirtualAppliance",
+                "nextHopIpAddress": "[variables('vipwan-ilb-vip')]"
+            }
+        },
+        {
+            "type": "Microsoft.Network/routeTables/routes",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('routeTables_vipwan_routetable_name'), '/RFC1918_192')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/routeTables', variables('routeTables_vipwan_routetable_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "192.168.0.0/16",
+                "nextHopType": "VirtualAppliance",
+                "nextHopIpAddress": "[variables('vipwan-ilb-vip')]"
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices",
+            "apiVersion": "2019-06-01",
+            "name": "[concat(variables('storageAccounts_diag_name'), '/default')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccounts_diag_name'))]"
+            ],
+            "sku": {
+                "name": "Standard_LRS",
+                "tier": "Standard"
+            },
+            "properties": {
+                "cors": {
+                    "corsRules": []
+                },
+                "deleteRetentionPolicy": {
+                    "enabled": false
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/fileServices",
+            "apiVersion": "2019-06-01",
+            "name": "[concat(variables('storageAccounts_diag_name'), '/default')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccounts_diag_name'))]"
+            ],
+            "sku": {
+                "name": "Standard_LRS",
+                "tier": "Standard"
+            },
+            "properties": {
+                "cors": {
+                    "corsRules": []
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Network/loadBalancers",
+            "apiVersion": "2019-11-01",
+            "name": "[variables('loadBalancers_vipwan_ilb_name')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworks_Net_Hub_vNet_name'), 'Viptela_P2P')]"
+            ],
+            "sku": {
+                "name": "Standard"
+            },
+            "properties": {
+                "frontendIPConfigurations": [
+                    {
+                        "name": "LoadBalancerFrontEnd",
+                        "properties": {
+                            "privateIPAddress": "[variables('vipwan-ilb-vip')]",
+                            "privateIPAllocationMethod": "Static",
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworks_Net_Hub_vNet_name'), 'Viptela_P2P')]"
+                            },
+                            "privateIPAddressVersion": "IPv4"
+                        }
+                    }
+                ],
+                "backendAddressPools": [
+                    {
+                        "name": "vipwan-pool"
+                    }
+                ],
+                "loadBalancingRules": [
+                    {
+                        "name": "[variables('loadBalancers_vipwan_ilb_name')]",
+                        "properties": {
+                            "frontendIPConfiguration": {
+                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('loadBalancers_vipwan_ilb_name')), '/frontendIPConfigurations/LoadBalancerFrontEnd')]"
+                            },
+                            "frontendPort": 0,
+                            "backendPort": 0,
+                            "enableFloatingIP": false,
+                            "idleTimeoutInMinutes": 4,
+                            "protocol": "All",
+                            "enableTcpReset": false,
+                            "loadDistribution": "Default",
+                            "disableOutboundSnat": false,
+                            "backendAddressPool": {
+                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('loadBalancers_vipwan_ilb_name')), '/backendAddressPools/vipwan-pool')]"
+                            },
+                            "probe": {
+                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('loadBalancers_vipwan_ilb_name')), '/probes/vipwan-probe')]"
+                            }
+                        }
+                    }
+                ],
+                "probes": [
+                    {
+                        "name": "vipwan-probe",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "port": 22,
+                            "intervalInSeconds": 5,
+                            "numberOfProbes": 2
+                        }
+                    }
+                ],
+                "inboundNatRules": [],
+                "outboundRules": [],
+                "inboundNatPools": []
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2019-11-01",
+            "name": "[variables('networkInterfaces_vipwan01_lan_nic_name')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworks_Net_Hub_vNet_name'), 'Viptela_P2P')]",
+                "[resourceId('Microsoft.Network/loadBalancers/', variables('loadBalancers_vipwan_ilb_name'))]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAddress": "[variables('vipwan01-lan-ip')]",
+                            "privateIPAllocationMethod": "Static",
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworks_Net_Hub_vNet_name'), 'Viptela_P2P')]"
+                            },
+                            "loadBalancerBackendAddressPools": [
+                                {
+                                    "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('loadBalancers_vipwan_ilb_name')), '/backendAddressPools/vipwan-pool')]"
+                                }
+                            ],
+                            "primary": true,
+                            "privateIPAddressVersion": "IPv4"
+                        }
+                    }
+                ],
+                "dnsSettings": {
+                    "dnsServers": []
+                },
+                "enableAcceleratedNetworking": false,
+                "enableIPForwarding": true
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('virtualNetworks_Net_Hub_vNet_name'), '/L3_Net_Mgmt')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworks_Net_Hub_vNet_name'))]",
+                "[resourceId('Microsoft.Network/routeTables', variables('routeTables_vipwan_routetable_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "[parameters('l3NetMgmtSubnetRange')]",
+                "routeTable": {
+                    "id": "[resourceId('Microsoft.Network/routeTables', variables('routeTables_vipwan_routetable_name'))]"
+                },
+                "serviceEndpoints": [],
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Enabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('virtualNetworks_Net_Hub_vNet_name'), '/Viptela_P2P')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworks_Net_Hub_vNet_name'))]",
+                "[resourceId('Microsoft.Network/routeTables', variables('routeTables_vipwan_routetable_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "[parameters('viptelaP2PSubnetRange')]",
+                "routeTable": {
+                    "id": "[resourceId('Microsoft.Network/routeTables', variables('routeTables_vipwan_routetable_name'))]"
+                },
+                "serviceEndpoints": [],
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Enabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+            "apiVersion": "2019-06-01",
+            "name": "[concat(variables('storageAccounts_diag_name'), '/default/bootdiagnostics-vipwan01-fba42146-fca4-4fd2-9e83-b01a97d142ca')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('storageAccounts_diag_name'), 'default')]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccounts_diag_name'))]"
+            ],
+            "properties": {
+                "publicAccess": "None"
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2019-11-01",
+            "name": "[variables('networkInterfaces_vipwan01_transport_nic_name')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddresses_vipwan01_ip_name'))]",
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworks_Net_Hub_vNet_name'), 'Front_DMZ')]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroups_vipwan01_nsg_name'))]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAddress": "[variables('vipwan01-transport-ip')]",
+                            "privateIPAllocationMethod": "Static",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddresses_vipwan01_ip_name'))]"
+                            },
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworks_Net_Hub_vNet_name'), 'Front_DMZ')]"
+                            },
+                            "primary": true,
+                            "privateIPAddressVersion": "IPv4"
+                        }
+                    }
+                ],
+                "dnsSettings": {
+                    "dnsServers": []
+                },
+                "enableAcceleratedNetworking": false,
+                "enableIPForwarding": false,
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroups_vipwan01_nsg_name'))]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "apiVersion": "2019-11-01",
+            "name": "[variables('virtualNetworks_Net_Hub_vNet_name')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/routeTables', variables('routeTables_vipwan_routetable_name'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroups_Net_Hub_Front_DMZ_NSG_name'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroups_Net_Hub_WAF_DMZ_NSG_name'))]"
+            ],
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('frontDMZSubnetRange')]",
+                        "[parameters('wafDMZSubnetRange')]",
+                        "[parameters('viptelaP2PSubnetRange')]",
+                        "[parameters('l3NetMgmtSubnetRange')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "L3_Net_Mgmt",
+                        "properties": {
+                            "addressPrefix": "[parameters('l3NetMgmtSubnetRange')]",
+                            "routeTable": {
+                                "id": "[resourceId('Microsoft.Network/routeTables', variables('routeTables_vipwan_routetable_name'))]"
+                            },
+                            "serviceEndpoints": [],
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Enabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        }
+                    },
+                    {
+                        "name": "Front_DMZ",
+                        "properties": {
+                            "addressPrefix": "[parameters('frontDMZSubnetRange')]",
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroups_Net_Hub_Front_DMZ_NSG_name'))]"
+                            },
+                            "routeTable": {
+                                "id": "[resourceId('Microsoft.Network/routeTables', variables('routeTables_vipwan_routetable_name'))]"
+                            },
+                            "serviceEndpoints": [],
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Enabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        }
+                    },
+                    {
+                        "name": "WAF_DMZ",
+                        "properties": {
+                            "addressPrefix": "[parameters('wafDMZSubnetRange')]",
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroups_Net_Hub_WAF_DMZ_NSG_name'))]"
+                            },
+                            "routeTable": {
+                                "id": "[resourceId('Microsoft.Network/routeTables', variables('routeTables_vipwan_routetable_name'))]"
+                            },
+                            "serviceEndpoints": [],
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Enabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        }
+                    },
+                    {
+                        "name": "Viptela_P2P",
+                        "properties": {
+                            "addressPrefix": "[parameters('viptelaP2PSubnetRange')]",
+                            "routeTable": {
+                                "id": "[resourceId('Microsoft.Network/routeTables', variables('routeTables_vipwan_routetable_name'))]"
+                            },
+                            "serviceEndpoints": [],
+                            "delegations": [],
+                            "privateEndpointNetworkPolicies": "Enabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        }
+                    }
+                ],
+                "enableDdosProtection": false,
+                "enableVmProtection": false
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('virtualNetworks_Net_Hub_vNet_name'), '/Front_DMZ')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworks_Net_Hub_vNet_name'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroups_Net_Hub_Front_DMZ_NSG_name'))]",
+                "[resourceId('Microsoft.Network/routeTables', variables('routeTables_vipwan_routetable_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "[parameters('frontDMZSubnetRange')]",
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroups_Net_Hub_Front_DMZ_NSG_name'))]"
+                },
+                "routeTable": {
+                    "id": "[resourceId('Microsoft.Network/routeTables', variables('routeTables_vipwan_routetable_name'))]"
+                },
+                "serviceEndpoints": [],
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Enabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "apiVersion": "2019-11-01",
+            "name": "[concat(variables('virtualNetworks_Net_Hub_vNet_name'), '/WAF_DMZ')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworks_Net_Hub_vNet_name'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroups_Net_Hub_WAF_DMZ_NSG_name'))]",
+                "[resourceId('Microsoft.Network/routeTables', variables('routeTables_vipwan_routetable_name'))]"
+            ],
+            "properties": {
+                "addressPrefix": "[parameters('wafDMZSubnetRange')]",
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroups_Net_Hub_WAF_DMZ_NSG_name'))]"
+                },
+                "routeTable": {
+                    "id": "[resourceId('Microsoft.Network/routeTables', variables('routeTables_vipwan_routetable_name'))]"
+                },
+                "serviceEndpoints": [],
+                "delegations": [],
+                "privateEndpointNetworkPolicies": "Enabled",
+                "privateLinkServiceNetworkPolicies": "Enabled"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2019-07-01",
+            "name": "[variables('virtualMachines_vipwan01_name')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/availabilitySets', variables('availabilitySets_vipwan_as_name'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('networkInterfaces_vipwan01_mgmt_nic_name'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('networkInterfaces_vipwan01_transport_nic_name'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('networkInterfaces_vipwan01_lan_nic_name'))]",
+                "[resourceId('Microsoft.Storage/StorageAccounts', variables('storageAccounts_diag_name'))]"
+            ],
+            "plan": {
+                "name": "cisco_vedge_azurecloud_18_4_0",
+                "product": "cisco_cloud_vedge_17_2_4",
+                "publisher": "cisco"
+            },
+            "properties": {
+                "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets', variables('availabilitySets_vipwan_as_name'))]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "Standard_D3"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "cisco",
+                        "offer": "cisco_cloud_vedge_17_2_4",
+                        "sku": "cisco_vedge_azurecloud_18_4_0",
+                        "version": "18.4.0"
+                    },
+                    "osDisk": {
+                        "osType": "Linux",
+                        "name": "[concat(variables('virtualMachines_vipwan01_name'), '_OsDisk_1_0a54ca182f4d4ed3a3d2e49af3d3d886')]",
+                        "createOption": "FromImage",
+                        "caching": "ReadWrite",
+                        "managedDisk": {
+                            "storageAccountType": "StandardSSD_LRS"
+                        },
+                        "diskSizeGB": 10
+                    },
+                    "dataDisks": []
+                },
+                "osProfile": {
+                    "computerName": "[variables('virtualMachines_vipwan01_name')]",
+                    "adminUsername": "uberadmin",
+                    "adminPassword": "[parameters('vipwanAdminPassword')]",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": false,
+                        "provisionVMAgent": true
+                    },
+                    "secrets": [],
+                    "allowExtensionOperations": true
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('networkInterfaces_vipwan01_mgmt_nic_name'))]",
+                            "properties": {
+                                "primary": true
+                            }
+                        },
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('networkInterfaces_vipwan01_transport_nic_name'))]",
+                            "properties": {
+                                "primary": false
+                            }
+                        },
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('networkInterfaces_vipwan01_lan_nic_name'))]",
+                            "properties": {
+                                "primary": false
+                            }
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": true,
+                        "storageUri": "[concat('https://', variables('storageAccounts_diag_name'), '.blob.core.windows.net/')]"
+                    }
+                }
+            }
+        }
+    ],
+    "outputs": {
+        "routeTableID": {
+            "type": "string",
+            "value": "[resourceId('Microsoft.Network/routeTables', variables('routeTables_vipwan_routetable_name'))]"
+        },
+        "netHubvNetID": {
+            "type": "string",
+            "value": "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworks_Net_Hub_vNet_name'))]"
+        },
+        "netHubvNetName": {
+            "type": "string",
+            "value": "[variables('virtualNetworks_Net_Hub_vNet_name')]"
+        }
+    }
+}
