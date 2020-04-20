@@ -29,7 +29,7 @@ $lciADFSNorthCentralvNetName = "LCI_ADFS_North-Central_vNet"
 
 Write-Host ""
 Write-Host "Connecting to Azure & selecting Prod subscription..."
-#Connect-AzAccount
+Connect-AzAccount
 Select-AzSubscription "Lippert Prod"
 
 
