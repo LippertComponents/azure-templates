@@ -33,7 +33,7 @@
         "availabilitySets_vipwan_as_name": "[concat(toLower(parameters('siteID')), '-vipwan-as')]",
         "publicIPAddresses_vipwan01_ip_name": "[concat(toLower(parameters('siteID')), '-vipwan-ip')]",
         "routeTables_vipwan_routetable_name": "[concat(toLower(parameters('siteID')), '-vipwan-routetable')]",
-        "storageAccounts_diag_name": "[concat(toLower(parameters('buName')), 'prod', toLower(parameters('locationName')), 'nethubdiag')]",
+        "storageAccounts_diag_name": "[concat(toLower(parameters('siteID')), 'nethubdiag')]",
         "networkInterfaces_vipwan01_lan_nic_name": "[concat(toLower(parameters('siteID')), '-vipwan01-lan-nic')]",
         "networkSecurityGroups_vipwan01_nsg_name": "[concat(toLower(parameters('siteID')), '-vipwan01-nsg')]",
         "networkInterfaces_vipwan01_mgmt_nic_name": "[concat(toLower(parameters('siteID')), '-vipwan01-mgmt-nic')]",
