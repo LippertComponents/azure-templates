@@ -1,0 +1,5 @@
+Add error handling to deployment.ps1
+
+Add optional second vEdge Cloud deployment 
+    Include necessary resources in Net-Hub_Resources.json
+    Update deployment.ps1 to prompt whether a second vEdge Cloud is needed
