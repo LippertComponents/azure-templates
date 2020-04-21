@@ -1,5 +1,5 @@
 #Define all parameters via user input
-$buName = Read-Host -Prompt 'What us the BU name? (eg LCI or TMS)'
+$buName = Read-Host -Prompt 'What is the BU name? (eg LCI or TMS)'
 $locationName = Read-Host -Prompt 'What is the Azure location name? (eg East or NorthCentral)'
 $azureRegion = Read-Host -Prompt 'What is the Azure region code? (eg eastus or northcentralus)'
 $siteID = Read-Host -Prompt 'What is the Site ID? (eg AZEST or AZTMS)'
