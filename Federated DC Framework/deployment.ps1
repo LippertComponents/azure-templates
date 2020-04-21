@@ -35,11 +35,12 @@ Select-AzSubscription "Lippert Prod"
 
 
 $rg_template="./Resource_Groups.json"
+$rgjob = 'job.' + ((Get-Date)).tostring("MMddyy.HHmm")
 Write-Host ""
 Write-Host "Phase 1/5"
 Write-Host "Beginning deployment of resource groups..."
 
-$rg_outputs = (New-AzSubscriptionDeployment -Location $azureRegion -TemplateFile $rg_template -buName $buName -locationName $locationName -azureRegion $azureRegion).Outputs
+$rg_outputs = (New-AzSubscriptionDeployment -Name $rgjob -Location $azureRegion -TemplateFile $rg_template -buName $buName -locationName $locationName -azureRegion $azureRegion).Outputs
 
 #Collect data from outputs section
 $netHubRG = $rg_outputs.netHubRGID.value
@@ -57,11 +58,12 @@ Write-Host $adfsRG
 
 
 $nethub_template = "./Net-Hub_Resources.json"
+$nethubjob = 'job.' + ((Get-Date)).tostring("MMddyy.HHmm")
 Write-Host ""
 Write-Host "Phase 2/5"
 Write-Host "Beginning deployment of Net-Hub resources..."
 
-$nethub_outputs = (New-AzResourceGroupDeployment -ResourceGroupName $netHubRG -TemplateFile $nethub_template -siteID $siteID -buName $buName -locationName $locationName -vipwanAdminPassword $vipwanAdminPassword -frontDMZSubnetRange $frontDMZSubnetRange -wafDMZSubnetRange $wafDMZSubnetRange -viptelaP2PSubnetRange $viptelaP2PSubnetRange -l3NetMgmtSubnetRange $l3NetMgmtSubnetRange).Outputs
+$nethub_outputs = (New-AzResourceGroupDeployment -Name $nethubjob -ResourceGroupName $netHubRG -TemplateFile $nethub_template -siteID $siteID -buName $buName -locationName $locationName -vipwanAdminPassword $vipwanAdminPassword -frontDMZSubnetRange $frontDMZSubnetRange -wafDMZSubnetRange $wafDMZSubnetRange -viptelaP2PSubnetRange $viptelaP2PSubnetRange -l3NetMgmtSubnetRange $l3NetMgmtSubnetRange).Outputs
 
 #Collect data from outputs section
 $routeTableID = $nethub_outputs.routeTableID.value
@@ -79,11 +81,12 @@ Write-Host $netHubvNetName
 
 
 $prodservers_template = "./Prod-Servers_Resources.json"
+$prodserversjob = 'job.' + ((Get-Date)).tostring("MMddyy.HHmm")
 Write-Host ""
 Write-Host "Phase 3/5"
 Write-Host "Beginning deployment of Prod-Servers resources..."
 
-$prodservers_outputs = (New-AzResourceGroupDeployment -ResourceGroupName $prodServersRG -TemplateFile $prodservers_template -buName $buName -locationName $locationName -routeTableID $routeTableID -unclassifiedSubnetRange $unclassifiedSubnetRange -restrictedSubnetRange $restrictedSubnetRange -confidentialSubnetRange $confidentialSubnetRange -topsecretSubnetRange $topsecretSubnetRange).Outputs
+$prodservers_outputs = (New-AzResourceGroupDeployment -Name $prodserversjob -ResourceGroupName $prodServersRG -TemplateFile $prodservers_template -buName $buName -locationName $locationName -routeTableID $routeTableID -unclassifiedSubnetRange $unclassifiedSubnetRange -restrictedSubnetRange $restrictedSubnetRange -confidentialSubnetRange $confidentialSubnetRange -topsecretSubnetRange $topsecretSubnetRange).Outputs
 
 #Collect data from outputs section
 $prodServersvNetID = $prodservers_outputs.prodServersvNetID.value
@@ -99,11 +102,12 @@ Write-Host $prodServersvNetName
 
 
 $adfs_template = "./ADFS_Resources.json"
+$adfsjob = 'job.' + ((Get-Date)).tostring("MMddyy.HHmm")
 Write-Host ""
 Write-Host "Phase 4/5"
 Write-Host "Beginning deployment of ADFS resources..."
 
-$adfs_outputs = (New-AzResourceGroupDeployment -ResourceGroupName $adfsRG -TemplateFile $adfs_template -buName $buName -locationName $locationName -routeTableID $routeTableID -adfswebSubnetRange $adfswebSubnetRange).Outputs
+$adfs_outputs = (New-AzResourceGroupDeployment -Name $adfsjob -ResourceGroupName $adfsRG -TemplateFile $adfs_template -buName $buName -locationName $locationName -routeTableID $routeTableID -adfswebSubnetRange $adfswebSubnetRange).Outputs
 
 #Collect data from outputs section
 $adfsServersvNetID = $adfs_outputs.adfsServersvNetID.value
@@ -120,12 +124,14 @@ Write-Host $adfsServersvNetName
 
 $fedpeering_template = "./vNet_Peering_Fed.json"
 $lcipeering_template = "./vNet_Peering_LCI.json"
+$fedpeeringjob = 'job.' + ((Get-Date)).tostring("MMddyy.HHmm")
+$lcipeeringjob = 'job.' + ((Get-Date)).tostring("MMddyy.HHmm")
 Write-Host ""
 Write-Host "Phase 5/5"
 Write-Host "Beginning connection of vNet Peers..."
 
-New-AzResourceGroupDeployment -ResourceGroupName $netHubRG -TemplateFile $fedpeering_template -netHubRG $netHubRG -netHubvNetID $netHubvNetID -netHubvNetName $netHubvNetName -prodServersRG $prodServersRG -prodServersvNetID $prodServersvNetID -prodServersvNetName $prodServersvNetName -adfsRG $adfsRG -adfsServersvNetID $adfsServersvNetID -adfsServersvNetName $adfsServersvNetName -lciADConnectRG $lciADConnectRG -lciADConnectvNetID $lciADConnectvNetID -lciADFSEastRG $lciADFSEastRG -lciADFSEastvNetID $lciADFSEastvNetID -lciADFSNorthCentralRG $lciADFSNorthCentralRG -lciADFSNorthCentralvNetID $lciADFSNorthCentralvNetID
-New-AzResourceGroupDeployment -ResourceGroupName $lciADConnectRG -TemplateFile $lcipeering_template -prodServersRG $prodServersRG -prodServersvNetID $prodServersvNetID -adfsRG $adfsRG -adfsServersvNetID $adfsServersvNetID -lciADConnectRG $lciADConnectRG -lciADConnectvNetName $lciADConnectvNetName -lciADFSEastRG $lciADFSEastRG -lciADFSEastvNetName $lciADFSEastvNetName -lciADFSNorthCentralRG $lciADFSNorthCentralRG -lciADFSNorthCentralvNetName $lciADFSNorthCentralvNetName
+New-AzResourceGroupDeployment -Name $fedpeeringjob -ResourceGroupName $netHubRG -TemplateFile $fedpeering_template -netHubRG $netHubRG -netHubvNetID $netHubvNetID -netHubvNetName $netHubvNetName -prodServersRG $prodServersRG -prodServersvNetID $prodServersvNetID -prodServersvNetName $prodServersvNetName -adfsRG $adfsRG -adfsServersvNetID $adfsServersvNetID -adfsServersvNetName $adfsServersvNetName -lciADConnectRG $lciADConnectRG -lciADConnectvNetID $lciADConnectvNetID -lciADFSEastRG $lciADFSEastRG -lciADFSEastvNetID $lciADFSEastvNetID -lciADFSNorthCentralRG $lciADFSNorthCentralRG -lciADFSNorthCentralvNetID $lciADFSNorthCentralvNetID
+New-AzResourceGroupDeployment -Name $lcipeeringjob -ResourceGroupName $lciADConnectRG -TemplateFile $lcipeering_template -prodServersRG $prodServersRG -prodServersvNetID $prodServersvNetID -adfsRG $adfsRG -adfsServersvNetID $adfsServersvNetID -lciADConnectRG $lciADConnectRG -lciADConnectvNetName $lciADConnectvNetName -lciADFSEastRG $lciADFSEastRG -lciADFSEastvNetName $lciADFSEastvNetName -lciADFSNorthCentralRG $lciADFSNorthCentralRG -lciADFSNorthCentralvNetName $lciADFSNorthCentralvNetName
 
 Write-Host ""
 Write-Host "vNet Peering Connections Successful..."
